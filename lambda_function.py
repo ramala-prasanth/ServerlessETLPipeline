@@ -1,27 +1,17 @@
-import boto3
 import csv
 import io
 from datetime import datetime, timedelta
 
-s3 = boto3.client('s3')
-
-def lambda_handler(event, context):
-    print("Lambda triggered by S3 event.")
+def process_orders(input_file, output_file):
+    print("Processing orders from the provided CSV file.")
     
-    # Get the S3 bucket and object key from the event
-    bucket_name = event['Records'][0]['s3']['bucket']['name']
-    raw_key = event['Records'][0]['s3']['object']['key']
-    file_name = raw_key.split('/')[-1]
-
-    print(f"Incoming file: {raw_key}")
-    
+    # Read the input CSV file
     try:
-        # Download raw CSV from S3
-        response = s3.get_object(Bucket=bucket_name, Key=raw_key)
-        raw_csv = response['Body'].read().decode('utf-8').splitlines()
-        print(f"Successfully read file from S3: {file_name}")
+        with open(input_file, mode='r', newline='', encoding='utf-8') as f:
+            raw_csv = f.read().splitlines()
+        print(f"Successfully read file: {input_file}")
     except Exception as e:
-        print(f"Error reading file from S3: {e}")
+        print(f"Error reading file: {e}")
         raise e
 
     reader = csv.DictReader(raw_csv)
@@ -46,23 +36,18 @@ def lambda_handler(event, context):
     print(f"Records filtered out: {filtered_out_count}")
     print(f"Records kept: {len(filtered_rows)}")
 
-    # Write the filtered rows to memory
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=reader.fieldnames)
-    writer.writeheader()
-    writer.writerows(filtered_rows)
-
-    # Save to processed/ folder
-    processed_key = f"processed/filtered_{file_name}"
-    
+    # Write the filtered rows to an output CSV file
     try:
-        s3.put_object(Bucket=bucket_name, Key=processed_key, Body=output.getvalue())
-        print(f"Filtered file successfully written to S3: {processed_key}")
+        with open(output_file, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=reader.fieldnames)
+            writer.writeheader()
+            writer.writerows(filtered_rows)
+        print(f"Filtered file successfully saved to: {output_file}")
     except Exception as e:
-        print(f"Error writing filtered file to S3: {e}")
+        print(f"Error writing filtered file: {e}")
         raise e
 
-    return {
-        'statusCode': 200,
-        'body': f"Filtered {len(filtered_rows)} rows and saved to {processed_key}"
-    }
+# Example usage:
+input_file = 'orders.csv'  # Replace with your input CSV file path
+output_file = 'filtered_orders.csv'  # Output file name
+process_orders(input_file, output_file)
